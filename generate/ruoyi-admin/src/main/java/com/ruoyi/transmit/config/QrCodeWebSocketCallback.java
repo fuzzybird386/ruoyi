@@ -1,6 +1,7 @@
 package com.ruoyi.transmit.config;
 
 
+import com.ruoyi.transmit.display.FramebufferQrDisplayService;
 import com.ruoyi.transmit.handler.QrCodeWebSocketHandler;
 import com.ruoyi.transmit.mapper.QrCodeQueueManager;
 import org.slf4j.Logger;
@@ -27,9 +28,15 @@ public class QrCodeWebSocketCallback implements QrCodeQueueManager.QrCodeUpdateC
     @Autowired
     private QrCodeQueueManager qrCodeQueueManager;
 
+    @Autowired
+    private FramebufferQrDisplayService framebufferQrDisplayService;
+
     @Override
     public void onQrCodeUpdate(Map<String, Object> data) {
         try {
+            // MIPI 屏直接显示（show_qr.py → /dev/fb0）
+            framebufferQrDisplayService.displayAsync(data);
+
             Map<String, Object> message = new HashMap<>();
             message.put("type", "QR_CODE_UPDATE");
             message.put("data", data);

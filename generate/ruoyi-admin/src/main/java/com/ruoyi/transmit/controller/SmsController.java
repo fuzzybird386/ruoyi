@@ -7,6 +7,8 @@ import com.ruoyi.common.annotation.Anonymous;
 import com.ruoyi.common.core.controller.BaseController;
 import com.ruoyi.transmit.entity.CleanupResult;
 import com.ruoyi.transmit.entity.CompletedDataStats;
+import com.ruoyi.transmit.display.FramebufferQrDisplayService;
+import com.ruoyi.transmit.display.QrDisplayProperties;
 import com.ruoyi.transmit.handler.QrCodeWebSocketHandler;
 import com.ruoyi.transmit.mapper.QrCodeQueueManager;
 import com.ruoyi.transmit.signal.SuccessSignalHandler;
@@ -15,6 +17,7 @@ import com.ruoyi.transmit.service.DataCleanupService;
 import com.ruoyi.transmit.service.QrCodeQueueService;
 import com.ruoyi.transmit.service.StatisticsService;
 import com.ruoyi.transmit.utils.QRCodeUtil;
+import com.ruoyi.transmit.utils.QrContentUtil;
 import lombok.var;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.core.io.InputStreamResource;
@@ -76,6 +79,12 @@ public class SmsController extends BaseController {
 
     @Autowired
     private DataCleanupService dataCleanupService;
+
+    @Autowired
+    private QrDisplayProperties qrDisplayProperties;
+
+    @Autowired
+    private FramebufferQrDisplayService framebufferQrDisplayService;
 
 
     // 内存存储最新生成的二维码数据
@@ -1139,6 +1148,20 @@ public class SmsController extends BaseController {
     }
 
 
+
+    /**
+     * 二维码显示配置（MIPI framebuffer / 浏览器）
+     */
+    @GetMapping("/displayConfig")
+    public AjaxResult displayConfig()
+    {
+        Map<String, Object> config = new HashMap<>();
+        config.put("mode", qrDisplayProperties.getMode());
+        config.put("enabled", qrDisplayProperties.isEnabled());
+        config.put("framebuffer", qrDisplayProperties.getFramebuffer());
+        config.put("framebufferMode", qrDisplayProperties.isFramebufferMode());
+        return AjaxResult.success(config);
+    }
 
     /**
      * 检查系统状态

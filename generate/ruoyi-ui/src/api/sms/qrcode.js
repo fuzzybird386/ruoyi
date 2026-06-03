@@ -15,6 +15,14 @@ export function generateQrCodeBase64(data) {
   })
 }
 
+// 获取显示配置（MIPI / 浏览器）
+export function getDisplayConfig() {
+  return request({
+    url: '/smsQrCode/displayConfig',
+    method: 'get'
+  })
+}
+
 // 生成二维码（返回图片流）
 export function generateQrCodeStream(data) {
   return request({

@@ -137,6 +137,7 @@ xss:
   urlPatterns: /system/*,/monitor/*,/tool/*
 
 # 扫描成功信号（GPIO 替代原 TCP 1919）
+# SENSOR_T = GPIO3_A3 = gpiochip3 line 3，输入上拉，触发为低
 scan:
   signal:
     source: gpio
@@ -144,10 +145,18 @@ scan:
       enabled: true
       library-name: gpio_signal
       library-path:
-      pin: 0
+      pin: 3
       poll-interval-ms: 100
-      active-level: 1
+      active-level: 0
       detect-mode: rising
+
+  # MIPI 屏二维码显示（show_qr.py → /dev/fb0，逻辑同 show.py）
+  display:
+    mode: framebuffer
+    enabled: true
+    python: python3
+    script-path:
+    framebuffer: /dev/fb0
 
 # 安全配置
 security:

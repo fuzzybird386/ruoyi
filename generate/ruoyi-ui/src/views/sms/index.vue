@@ -776,15 +776,21 @@
           </div>
         </div>
 
-        <div v-if="currentImageUrl" class="qrcode-display">
+        <div v-if="currentImageUrl || (framebufferMode && currentData)" class="qrcode-display">
           <div class="qrcode-wrapper">
             <img
+              v-if="currentImageUrl"
               :src="currentImageUrl"
               class="qrcode-image"
               alt="二维码"
               @load="onImageLoad"
               @error="onImageError"
             />
+            <div v-else class="mipi-display-hint">
+              <div class="mipi-icon">🖥️</div>
+              <p>二维码已在 MIPI 屏显示</p>
+              <p class="mipi-sub">/dev/fb0 · show_qr.py</p>
+            </div>
             <div class="refresh-indicator" v-if="isRefreshing">
               <div class="spinner"></div>
               <span>刷新中...</span>
@@ -961,6 +967,7 @@
 <script>
 import {
   autoGenerateQrCode,
+  getDisplayConfig,
   getAllQueueStatus,
   exportAndClearFailedData,
   exportFailedData,
@@ -1020,6 +1027,9 @@ export default {
 
       autoRefreshTimer: null,
       refreshInterval: 3000, // 3秒刷新一次
+
+      // MIPI framebuffer 显示模式（后端 show_qr.py）
+      framebufferMode: false,
     };
   },
 
@@ -1067,6 +1077,7 @@ export default {
 
   mounted() {
     console.log("=== 启动二维码显示系统 ===");
+    this.loadDisplayConfig();
     this.initWebSocket();
     this.startPolling();
     this.refreshQueueStatus();
@@ -1082,6 +1093,22 @@ export default {
   },
 
   methods: {
+    /** 加载显示模式配置 */
+    async loadDisplayConfig() {
+      try {
+        const response = await getDisplayConfig();
+        if (response.data) {
+          this.framebufferMode = response.data.framebufferMode === true;
+          if (this.framebufferMode) {
+            this.lastRequestStatus = "MIPI 屏显示模式（/dev/fb0）";
+          }
+        }
+      } catch (error) {
+        console.warn("获取显示配置失败，使用浏览器模式", error);
+        this.framebufferMode = false;
+      }
+    },
+
     /** 初始化WebSocket */
     async initWebSocket() {
       try {
@@ -1382,6 +1409,16 @@ export default {
     /** 生成并显示二维码 */
     async generateAndDisplayQrCode(data) {
       try {
+        this.lastUpdateTime = new Date().toLocaleTimeString();
+
+        if (this.framebufferMode) {
+          // 后端 onQrCodeUpdate 已调用 show_qr.py 写入 /dev/fb0
+          this.revokeImageUrl();
+          this.currentImageUrl = "";
+          this.lastRequestStatus = "✅ MIPI 屏二维码已刷新";
+          return;
+        }
+
         this.lastRequestStatus = "调用API生成二维码中...";
 
         const response = await autoGenerateQrCode(data);
@@ -1394,7 +1431,6 @@ export default {
 
         this.revokeImageUrl();
         this.currentImageUrl = imageUrl;
-        this.lastUpdateTime = new Date().toLocaleTimeString();
         this.lastRequestStatus = `✅ 二维码显示成功!`;
 
         this.$message.success('二维码已更新');
@@ -2005,6 +2041,31 @@ export default {
   border: 2px solid #e9ecef;
   border-radius: 8px;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+}
+
+.mipi-display-hint {
+  width: 300px;
+  height: 300px;
+  margin: 0 auto;
+  border: 2px dashed #409EFF;
+  border-radius: 8px;
+  background: #f0f9ff;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  color: #303133;
+}
+
+.mipi-display-hint .mipi-icon {
+  font-size: 48px;
+  margin-bottom: 12px;
+}
+
+.mipi-display-hint .mipi-sub {
+  font-size: 12px;
+  color: #909399;
+  margin-top: 8px;
 }
 
 .refresh-indicator {
