@@ -1,0 +1,18 @@
+FROM openjdk:8-jdk-alpine
+
+ENV LANG C.UTF-8
+#ENV MYSQL_IP=192.168.1.10
+#ENV HOST_SYS=/host/sys
+#ENV HOST_ETC=/host/etc
+
+RUN mkdir /app
+
+RUN apk add --no-cache fontconfig ttf-dejavu
+
+COPY target/ruoyi-admin.jar /app/ruoyi-admin.jar
+
+WORKDIR /app
+
+EXPOSE 8787
+
+ENTRYPOINT ["java", "-jar", "/app/ruoyi-admin.jar"]

@@ -1,0 +1,14 @@
+# /home/phoney/rouyi-file/generate/ruoyi-admin/Dockerfile.arm64
+FROM eclipse-temurin:8-jre
+
+ENV LANG=C.UTF-8
+WORKDIR /app
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    fontconfig fonts-dejavu-core \
+    && rm -rf /var/lib/apt/lists/*
+
+COPY target/ruoyi-admin.jar /app/ruoyi-admin.jar
+
+EXPOSE 8787
+ENTRYPOINT ["java", "-jar", "/app/ruoyi-admin.jar"]

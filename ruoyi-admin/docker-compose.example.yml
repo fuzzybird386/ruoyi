@@ -1,0 +1,58 @@
+# 与 application.yml / application-druid.yml 对应的 Compose 示例
+# 使用: docker compose -f docker-compose.example.yml up -d
+# 请先构建或导入镜像，例如: docker build -f Dockerfile1 -t accept:latest .
+#
+# 说明:
+# - HTTP 端口对应 server.port -> SERVER_PORT=9898
+# - spring.profiles.active=druid -> SPRING_PROFILES_ACTIVE=druid（数据源读 application-druid，可用环境变量覆盖）
+# - spring.redis -> SPRING_REDIS_HOST 指向服务名 redis
+# - ruoyi.profile -> RUOYI_PROFILE（上传目录，需可写挂载）
+# - tcp.server.port=9000 -> 一并映射，若不需要可删掉 ports 中的 9000
+
+services:
+  mysql:
+    image: mysql:8.0
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-change_me}
+      MYSQL_DATABASE: accept
+    ports:
+      - "${MYSQL_HOST_PORT:-3306}:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+    command: --character-set-server=utf8mb4 --collation-server=utf8mb4_unicode_ci
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "${REDIS_HOST_PORT:-6379}:6379"
+
+  ruoyi-admin:
+    image: ${RUOYI_IMAGE:-accept:latest}
+    depends_on:
+      - mysql
+      - redis
+    ports:
+      - "${HTTP_PORT:-9898}:9898"
+      - "${TCP_PORT:-9000}:9000"
+    environment:
+      SERVER_PORT: "9898"
+      SPRING_PROFILES_ACTIVE: druid
+      # 容器内连 Redis 用服务名，覆盖 application.yml 里的 127.0.0.1
+      SPRING_REDIS_HOST: redis
+      SPRING_REDIS_PORT: "6379"
+      # 无密码时留空或不设；有密码时设置 SPRING_REDIS_PASSWORD
+      # 覆盖 Druid 主库（与 compose 内 mysql 一致）
+      SPRING_DATASOURCE_DRUID_MASTER_URL: >-
+        jdbc:mysql://mysql:3306/accept?useUnicode=true&characterEncoding=utf8&zeroDateTimeBehavior=convertToNull&useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=GMT%2B8
+      SPRING_DATASOURCE_DRUID_MASTER_USERNAME: root
+      SPRING_DATASOURCE_DRUID_MASTER_PASSWORD: ${MYSQL_ROOT_PASSWORD:-change_me}
+      # 上传路径（Linux），与 application.yml 中 ruoyi.profile 对应
+      RUOYI_PROFILE: /data/ruoyi/uploadPath
+      # 容器内建议关闭热部署
+      SPRING_DEVTOOLS_RESTART_ENABLED: "false"
+    volumes:
+      - ruoyi_upload:/data/ruoyi/uploadPath
+
+volumes:
+  mysql_data:
+  ruoyi_upload:

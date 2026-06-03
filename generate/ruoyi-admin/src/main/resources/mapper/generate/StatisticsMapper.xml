@@ -1,0 +1,52 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.ruoyi.transmit.mapper.StatisticsMapper">
+
+
+    <resultMap id="QrCodeStatisticsResult" type="com.ruoyi.transmit.entity.QrCodeStatistics">
+        <id property="id" column="id"/>
+        <result property="statDate" column="stat_date"/>
+        <result property="year" column="year"/>
+        <result property="month" column="month"/>
+        <result property="receiveCount" column="receive_count"/>
+        <result property="qrCodeCount" column="qr_code_count"/>
+        <result property="createTime" column="create_time"/>
+    </resultMap>
+
+    <insert id="insert" parameterType="com.ruoyi.transmit.entity.QrCodeStatistics" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO qr_code_statistics (stat_date, year, month, receive_count, qr_code_count, create_time)
+        VALUES (#{statDate}, #{year}, #{month}, #{receiveCount}, #{qrCodeCount}, #{createTime})
+    </insert>
+
+    <update id="update" parameterType="com.ruoyi.transmit.entity.QrCodeStatistics">
+        UPDATE qr_code_statistics
+        SET receive_count = #{receiveCount}, qr_code_count = #{qrCodeCount}
+        WHERE id = #{id}
+    </update>
+
+    <select id="selectByYearAndMonth" resultMap="QrCodeStatisticsResult">
+        SELECT * FROM qr_code_statistics
+        WHERE year = #{year} AND month = #{month}
+    </select>
+
+    <select id="selectMonthlyStatistics" resultType="java.util.Map">
+        SELECT
+        year,
+        month,
+        receive_count as receiveCount,
+        qr_code_count as qrCodeCount
+        FROM qr_code_statistics
+        WHERE 1=1
+        <if test="year != null">
+            AND year = #{year}
+        </if>
+        ORDER BY year DESC, month DESC
+    </select>
+
+    <select id="selectAvailableYears" resultType="java.lang.Integer">
+        SELECT DISTINCT year FROM qr_code_statistics ORDER BY year DESC
+    </select>
+
+</mapper>

@@ -42,6 +42,18 @@ nbdist/
 *.xml.versionsBackup
 *.swp
 
+######################################################################
+# Project backups / deploy artifacts (do not commit)
+*.zip
+*.tar
+*.tar.gz
+/dist/
+/system_test/*.zip
+/accept (3).zip
+/generate (4).zip
+/ruoyi-admin/*.tar
+/ruoyi-ui/dist.zip
+
 !*/build/*.java
 !*/build/*.html
 !*/build/*.xml

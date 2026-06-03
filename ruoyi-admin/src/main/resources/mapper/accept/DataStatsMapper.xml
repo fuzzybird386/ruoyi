@@ -1,0 +1,73 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.ruoyi.accept.mapper.DataStatsMapper">
+
+<!--    <resultMap type="DataStats" id="DataStatsResult">-->
+<!--&lt;!&ndash;        <id property="id" column="id"/>&ndash;&gt;-->
+<!--        <result property="id" column="id"/>-->
+<!--        <result property="statsMonth" column="stats_month"/>-->
+<!--        <result property="tcpReceiveCount" column="tcp_receive_count"/>-->
+<!--        <result property="apiCallCount" column="api_call_count"/>-->
+<!--        <result property="createTime" column="create_time"/>-->
+<!--        <result property="updateTime" column="update_time"/>-->
+<!--    </resultMap>-->
+
+<!--    <sql id="selectDataStatsVo">-->
+<!--        select id, stats_month, tcp_receive_count, api_call_count, create_time, update_time-->
+<!--        from sys_data_stats-->
+<!--    </sql>-->
+
+<!--    <select id="selectByMonth" parameterType="String" resultMap="DataStatsResult">-->
+<!--        <include refid="selectDataStatsVo"/>-->
+<!--        where stats_month = #{statsMonth}-->
+<!--    </select>-->
+
+<!--    <insert id="insert" parameterType="DataStats" useGeneratedKeys="true" keyProperty="id">-->
+<!--        insert into sys_data_stats (-->
+<!--            stats_month,-->
+<!--            tcp_receive_count,-->
+<!--            api_call_count-->
+<!--        ) values (-->
+<!--                     #{statsMonth},-->
+<!--                     #{tcpReceiveCount},-->
+<!--                     #{apiCallCount}-->
+<!--                 )-->
+<!--    </insert>-->
+
+<!--    <update id="update" parameterType="DataStats">-->
+<!--        update sys_data_stats-->
+<!--        <set>-->
+<!--            <if test="tcpReceiveCount != null">tcp_receive_count = #{tcpReceiveCount},</if>-->
+<!--            <if test="apiCallCount != null">api_call_count = #{apiCallCount},</if>-->
+<!--            update_time = sysdate()-->
+<!--        </set>-->
+<!--        where id = #{id}-->
+<!--    </update>-->
+
+<!--    <update id="incrementTcpReceiveCount">-->
+<!--        update sys_data_stats-->
+<!--        set tcp_receive_count = tcp_receive_count + 1,-->
+<!--            update_time = sysdate()-->
+<!--        where stats_month = #{statsMonth}-->
+<!--    </update>-->
+
+<!--    <update id="incrementApiCallCount">-->
+<!--        update sys_data_stats-->
+<!--        set api_call_count = api_call_count + 1,-->
+<!--            update_time = sysdate()-->
+<!--        where stats_month = #{statsMonth}-->
+<!--    </update>-->
+
+<!--    <select id="selectStatsList" parameterType="DataStats" resultMap="DataStatsResult">-->
+<!--        <include refid="selectDataStatsVo"/>-->
+<!--        <where>-->
+<!--            <if test="statsMonth != null and statsMonth != ''">-->
+<!--                and stats_month like concat(#{statsMonth}, '%')-->
+<!--            </if>-->
+<!--        </where>-->
+<!--        order by stats_month desc-->
+<!--    </select>-->
+
+</mapper>

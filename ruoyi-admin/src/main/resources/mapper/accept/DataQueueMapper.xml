@@ -1,0 +1,167 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.ruoyi.accept.mapper.DataQueueMapper">
+
+
+    <resultMap type="com.ruoyi.accept.entity.DataQueue" id="DataQueueResult">
+        <result property="dataId" column="data_id"/>
+        <result property="jsonData" column="json_data"/>
+        <result property="queueType" column="queue_type"/>
+        <result property="retryCount" column="retry_count"/>
+        <result property="maxRetryCount" column="max_retry_count"/>
+        <result property="status" column="status"/>
+        <result property="createTime" column="create_time"/>
+        <result property="updateTime" column="update_time"/>
+        <result property="lastSendTime" column="last_send_time"/>
+        <result property="sendResult" column="send_result"/>
+        <result property="remark" column="remark"/>
+    </resultMap>
+
+    <sql id="selectDataQueueVo">
+        select data_id, json_data, queue_type, retry_count, max_retry_count, status, create_time, update_time, last_send_time, send_result, remark from sys_data_queue
+    </sql>
+
+    <!-- 根据ID查询数据 -->
+    <select id="selectDataQueueById" parameterType="String" resultMap="DataQueueResult">
+        <include refid="selectDataQueueVo"/>
+        where data_id = #{dataId}
+    </select>
+
+    <!-- 查询所有数据 -->
+    <select id="selectDataQueueList" parameterType="com.ruoyi.accept.entity.DataQueue" resultMap="DataQueueResult">
+        <include refid="selectDataQueueVo"/>
+        <where>
+            <if test="dataId != null  and dataId != ''"> and data_id = #{dataId}</if>
+            <if test="queueType != null  and queueType != ''"> and queue_type = #{queueType}</if>
+            <if test="status != null  and status != ''"> and status = #{status}</if>
+        </where>
+        order by create_time desc
+    </select>
+
+    <!-- 插入数据 -->
+    <insert id="insertDataQueue" parameterType="com.ruoyi.accept.entity.DataQueue">
+        insert into sys_data_queue
+        <trim prefix="(" suffix=")" suffixOverrides=",">
+            <if test="dataId != null">data_id,</if>
+            <if test="jsonData != null">json_data,</if>
+            <if test="queueType != null">queue_type,</if>
+            <if test="retryCount != null">retry_count,</if>
+            <if test="maxRetryCount != null">max_retry_count,</if>
+            <if test="status != null">status,</if>
+            <if test="createTime != null">create_time,</if>
+            <if test="updateTime != null">update_time,</if>
+            <if test="lastSendTime != null">last_send_time,</if>
+            <if test="sendResult != null">send_result,</if>
+            <if test="remark != null">remark,</if>
+        </trim>
+        <trim prefix="values (" suffix=")" suffixOverrides=",">
+            <if test="dataId != null">#{dataId},</if>
+            <if test="jsonData != null">#{jsonData},</if>
+            <if test="queueType != null">#{queueType},</if>
+            <if test="retryCount != null">#{retryCount},</if>
+            <if test="maxRetryCount != null">#{maxRetryCount},</if>
+            <if test="status != null">#{status},</if>
+            <if test="createTime != null">#{createTime},</if>
+            <if test="updateTime != null">#{updateTime},</if>
+            <if test="lastSendTime != null">#{lastSendTime},</if>
+            <if test="sendResult != null">#{sendResult},</if>
+            <if test="remark != null">#{remark},</if>
+        </trim>
+    </insert>
+
+    <!-- 更新数据 -->
+    <update id="updateDataQueue" parameterType="com.ruoyi.accept.entity.DataQueue">
+        update sys_data_queue
+        <trim prefix="SET" suffixOverrides=",">
+            <if test="jsonData != null">json_data = #{jsonData},</if>
+            <if test="queueType != null">queue_type = #{queueType},</if>
+            <if test="retryCount != null">retry_count = #{retryCount},</if>
+            <if test="maxRetryCount != null">max_retry_count = #{maxRetryCount},</if>
+            <if test="status != null">status = #{status},</if>
+            <if test="updateTime != null">update_time = #{updateTime},</if>
+            <if test="lastSendTime != null">last_send_time = #{lastSendTime},</if>
+            <if test="sendResult != null">send_result = #{sendResult},</if>
+            <if test="remark != null">remark = #{remark},</if>
+        </trim>
+        where data_id = #{dataId}
+    </update>
+
+    <delete id="deleteDataQueueById" parameterType="String">
+        delete from sys_data_queue where data_id = #{dataId}
+    </delete>
+
+    <delete id="deleteDataQueueByIds" parameterType="String">
+        delete from sys_data_queue where data_id in
+        <foreach item="dataId" collection="array" open="(" separator="," close=")">
+            #{dataId}
+        </foreach>
+    </delete>
+
+    <select id="selectByQueueType" parameterType="String" resultMap="DataQueueResult">
+        <include refid="selectDataQueueVo"/>
+        where queue_type = #{queueType} and status in ('PENDING', 'FAILED')
+        order by create_time asc
+    </select>
+
+    <select id="selectByStatus" parameterType="String" resultMap="DataQueueResult">
+        <include refid="selectDataQueueVo"/>
+        where status = #{status}
+        order by create_time asc
+    </select>
+
+    <update id="updateStatus">
+        update sys_data_queue
+        set status = #{status}, update_time = sysdate()
+        where data_id = #{dataId}
+    </update>
+
+    <update id="incrementRetryCount">
+        update sys_data_queue
+        set retry_count = retry_count + 1, update_time = sysdate(), last_send_time = sysdate()
+        where data_id = #{dataId}
+    </update>
+
+    <update id="updateSendResult">
+        update sys_data_queue
+        set send_result = #{sendResult}, status = #{status}, update_time = sysdate(), last_send_time = sysdate()
+        where data_id = #{dataId}
+    </update>
+
+    <select id="selectNeedRetryData" resultMap="DataQueueResult">
+        <include refid="selectDataQueueVo"/>
+        where queue_type = #{queueType}
+        and status in ('PENDING', 'FAILED')
+        and retry_count &lt; #{maxRetryCount}
+        order by create_time asc
+    </select>
+
+    <update id="updateQueueType">
+        update sys_data_queue
+        set queue_type = #{queueType}, update_time = sysdate()
+        where data_id = #{dataId}
+    </update>
+
+    <!-- 删除指定日期前的成功数据 -->
+    <delete id="deleteSuccessDataBeforeDate" parameterType="Date">
+        DELETE FROM sys_data_queue
+        WHERE status = 'SUCCESS'
+        AND create_time &lt; #{cutoffDate}
+    </delete>
+
+    <!-- 统计成功数据数量 -->
+    <select id="countSuccessData" resultType="int">
+        SELECT COUNT(*)
+        FROM sys_data_queue
+        WHERE status = 'SUCCESS'
+    </select>
+
+    <!-- 统计指定日期前的成功数据数量 -->
+    <select id="countSuccessDataBeforeDate" parameterType="Date" resultType="int">
+        SELECT COUNT(*)
+        FROM sys_data_queue
+        WHERE status = 'SUCCESS'
+          AND create_time &lt; #{cutoffDate}
+    </select>
+</mapper>

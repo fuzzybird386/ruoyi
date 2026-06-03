@@ -1,0 +1,158 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.ruoyi.transmit.mapper.QrMapper">
+
+    <!-- 队列类型常量 -->
+    <sql id="queueType">
+        <bind name="QUEUE_TYPE_1" value="1"/>
+        <bind name="QUEUE_TYPE_2" value="2"/>
+    </sql>
+
+    <!-- 状态常量 -->
+    <sql id="status">
+        <bind name="STATUS_PENDING" value="1"/>
+        <bind name="STATUS_PROCESSING" value="2"/>
+        <bind name="STATUS_COMPLETED" value="3"/>
+        <bind name="STATUS_FAILED" value="4"/>
+    </sql>
+
+    <!-- 插入数据到指定队列 -->
+    <insert id="insertQueueData" parameterType="map">
+        INSERT INTO qr_code_queue (data_id, queue_type, content_json, status, created_time)
+        VALUES (#{dataId}, #{queueType}, #{contentJson}, #{status}, NOW())
+    </insert>
+
+    <!-- 从队列一获取待处理数据 -->
+    <select id="selectFirstFromQueue1" resultType="java.util.HashMap">
+        SELECT id, data_id, content_json, refresh_count
+        FROM qr_code_queue
+        WHERE queue_type = 1 AND status = 1
+        ORDER BY created_time ASC
+        LIMIT 100  <!-- 限制最大数量，避免数据过多 -->
+    </select>
+
+    <!-- 更新数据状态 -->
+    <update id="updateDataStatus" parameterType="map">
+        UPDATE qr_code_queue
+        SET status = #{status}, updated_time = NOW()
+        WHERE data_id = #{dataId}
+    </update>
+
+    <!-- 移动到队列二 -->
+    <update id="moveToQueue2" parameterType="map">
+        UPDATE qr_code_queue
+        SET queue_type = 2, status = 4, fail_reason = #{failReason}, updated_time = NOW()
+        WHERE data_id = #{dataId}
+    </update>
+
+    <!-- 获取队列大小 -->
+    <select id="getQueueSize" parameterType="map" resultType="int">
+        SELECT COUNT(*)
+        FROM qr_code_queue
+        WHERE queue_type = #{queueType} AND status = #{status}
+    </select>
+
+    <!-- 获取队列二所有数据 -->
+    <select id="selectAllFromQueue2" resultType="java.util.HashMap">
+        SELECT id, data_id, content_json, fail_reason, created_time
+        FROM qr_code_queue
+        WHERE queue_type = 2 AND status = 4
+        ORDER BY created_time DESC
+    </select>
+
+    <!-- 删除队列二数据 -->
+    <delete id="deleteFromQueue2" parameterType="string">
+        DELETE FROM qr_code_queue
+        WHERE data_id = #{dataId} AND queue_type = 2
+    </delete>
+
+    <!-- 清空指定队列 -->
+    <delete id="clearQueue" parameterType="int">
+        DELETE FROM qr_code_queue
+        WHERE queue_type = #{queueType}
+    </delete>
+
+    <!-- 插入当前处理数据 -->
+    <insert id="insertCurrentProcessing" parameterType="map">
+        INSERT INTO qr_code_current_processing (data_id, content_json, refresh_count)
+        VALUES (#{dataId}, #{contentJson}, #{refreshCount})
+    </insert>
+
+    <!-- 获取当前处理数据 -->
+    <select id="selectCurrentProcessing" resultType="java.util.HashMap">
+        SELECT data_id, content_json, refresh_count
+        FROM qr_code_current_processing
+    </select>
+
+    <!-- 更新当前处理数据的刷新次数 -->
+    <update id="updateCurrentProcessingRefreshCount" parameterType="map">
+        UPDATE qr_code_current_processing
+        SET refresh_count = #{refreshCount}, updated_time = NOW()
+        WHERE data_id = #{dataId}
+    </update>
+
+    <!-- 删除当前处理数据 -->
+    <delete id="deleteCurrentProcessing" parameterType="string">
+        DELETE FROM qr_code_current_processing
+        WHERE data_id = #{dataId}
+    </delete>
+
+    <!-- 清空当前处理数据 -->
+    <delete id="clearCurrentProcessing">
+        DELETE FROM qr_code_current_processing
+    </delete>
+
+    <!-- 获取所有队列一数据 -->
+    <select id="selectAllFromQueue1" resultType="java.util.HashMap">
+        SELECT id, data_id, content_json, status, created_time
+        FROM qr_code_queue
+        WHERE queue_type = 1 and status=1
+        ORDER BY created_time ASC
+    </select>
+
+
+
+    <!-- 定时删除***************************** -->
+    <!-- 删除指定日期前的已完成数据（状态为3） -->
+    <delete id="deleteCompletedDataBeforeDate" parameterType="Date">
+        DELETE FROM qr_code_queue
+        WHERE status = 3
+          AND created_time &lt; #{cutoffDate}
+    </delete>
+
+    <!-- 统计已完成数据数量 -->
+    <select id="countCompletedData" resultType="int">
+        SELECT COUNT(*)
+        FROM qr_code_queue
+        WHERE status = 3
+    </select>
+
+    <!-- 统计指定日期前的已完成数据数量 -->
+    <select id="countCompletedDataBeforeDate" parameterType="Date" resultType="int">
+        SELECT COUNT(*)
+        FROM qr_code_queue
+        WHERE status = 3
+          AND created_time &lt; #{cutoffDate}
+    </select>
+
+    <!-- 查询指定日期前的已完成数据 -->
+    <select id="selectCompletedDataBeforeDate" parameterType="Date" resultType="java.util.HashMap">
+        SELECT id, data_id, content_json, created_time, updated_time
+        FROM qr_code_queue
+        WHERE status = 3
+        AND created_time &lt; #{cutoffDate}
+        ORDER BY created_time DESC
+        LIMIT 100  <!-- 限制查询数量 -->
+    </select>
+
+    <!-- 查询所有已完成数据（用于统计） -->
+    <select id="selectAllCompletedData" resultType="java.util.HashMap">
+        SELECT id, data_id, content_json, created_time, updated_time
+        FROM qr_code_queue
+        WHERE status = 3
+        ORDER BY created_time DESC
+    </select>
+
+</mapper>
