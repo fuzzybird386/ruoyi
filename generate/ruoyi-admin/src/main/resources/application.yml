@@ -138,11 +138,12 @@ xss:
 
 # 扫描成功信号（GPIO 替代原 TCP 1919）
 # SENSOR_T = GPIO3_A3 = gpiochip3 line 3，输入上拉，触发为低
+# 测试环境：gpio.enabled=false，不轮询引脚；队列由 QrCodeQueueManager.TEST_MODE 定时切卡
 scan:
   signal:
     source: gpio
     gpio:
-      enabled: true
+      enabled: false
       library-name: gpio_signal
       library-path:
       pin: 3

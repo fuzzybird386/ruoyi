@@ -6,13 +6,14 @@ import com.ruoyi.transmit.entity.CleanupResult;
 import com.ruoyi.transmit.entity.CompletedDataStats;
 import com.ruoyi.transmit.mapper.QrMapper;
 import lombok.extern.slf4j.Slf4j;
-import lombok.var;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 
 import java.util.Calendar;
 import java.util.Date;
+import java.util.List;
+import java.util.Map;
 
 @Slf4j
 @Service
@@ -53,11 +54,11 @@ public class DataCleanupService {
                     toDeleteCount, COMPLETED_DATA_RETENTION_DAYS);
 
             // 查询要删除的数据详情（用于日志记录）
-            var dataToDelete = qrMapper.selectCompletedDataBeforeDate(cutoffDate);
+            List<Map<String, Object>> dataToDelete = qrMapper.selectCompletedDataBeforeDate(cutoffDate);
             if (!dataToDelete.isEmpty()) {
                 log.info("📋 即将删除的已完成数据（前10条）:");
                 int count = 0;
-                for (var data : dataToDelete) {
+                for (Map<String, Object> data : dataToDelete) {
                     if (count++ >= 10) break;
                     log.info("   - ID: {}, DataID: {}, 创建时间: {}",
                             data.get("id"), data.get("data_id"), data.get("created_time"));
@@ -93,7 +94,7 @@ public class DataCleanupService {
             stats.setLastWeekCount(qrMapper.countCompletedDataBeforeDate(weekAgo));
 
             // 统计最近的数据
-            var recentData = qrMapper.selectAllCompletedData();
+            List<Map<String, Object>> recentData = qrMapper.selectAllCompletedData();
             stats.setRecentData(recentData);
 
             return stats;

@@ -23,7 +23,11 @@ public class QrCodeQueueManager {
     private static final int STATUS_COMPLETED = 3;
     private static final int STATUS_FAILED = 4;
 
+    /** 测试环境：不依赖 GPIO 成功信号，每张二维码固定展示时长后自动完成 */
+    private static final boolean TEST_MODE = true;
+
     private static final int REFRESH_INTERVAL_SECONDS = 3;
+    private static final int DISPLAY_DURATION_SECONDS = 3;
     private static final int MAX_REFRESH_COUNT = 10;
     private static final String TIMEOUT_REASON = "刷新10次未收到成功信号";
 
@@ -38,6 +42,7 @@ public class QrCodeQueueManager {
 
     private volatile Map<String, Object> currentProcessingData = null;
     private volatile boolean consumerIdle = true;
+    private volatile long currentDisplayStartMs = 0L;
     private final AtomicInteger refreshCount = new AtomicInteger(0);
 
     private final ScheduledExecutorService scheduler = Executors.newSingleThreadScheduledExecutor();
@@ -127,6 +132,7 @@ public class QrCodeQueueManager {
                 currentProcessingData = data;
                 refreshCount.set((Integer) dbCurrent.get("refresh_count"));
                 consumerIdle = false;
+                currentDisplayStartMs = System.currentTimeMillis();
 
                 String dataId = generateDataId(currentProcessingData);
                 System.out.println("🔄 恢复当前处理数据: " + dataId + "，刷新次数: " + refreshCount.get());
@@ -146,11 +152,27 @@ public class QrCodeQueueManager {
     private void onRefreshTick() {
         synchronized (consumerLock) {
             if (currentProcessingData != null) {
-                refreshCurrentItem();
+                if (TEST_MODE) {
+                    advanceTestModeItem();
+                } else {
+                    refreshCurrentItem();
+                }
             } else {
                 dequeueNext();
             }
         }
+    }
+
+    /** 测试模式：展示满 {@link #DISPLAY_DURATION_SECONDS} 秒后自动完成，不刷新、不判成功/超时 */
+    private void advanceTestModeItem() {
+        long elapsedMs = System.currentTimeMillis() - currentDisplayStartMs;
+        if (elapsedMs < DISPLAY_DURATION_SECONDS * 1000L) {
+            return;
+        }
+
+        String dataId = generateDataId(currentProcessingData);
+        System.out.println("⏱️ 【测试模式】展示 " + DISPLAY_DURATION_SECONDS + " 秒，自动完成: " + dataId);
+        ackCurrentItem(dataId);
     }
 
     /**
@@ -184,6 +206,7 @@ public class QrCodeQueueManager {
                                      String contentJson, int pendingBehind) {
         consumerIdle = false;
         currentProcessingData = data;
+        currentDisplayStartMs = System.currentTimeMillis();
         refreshCount.set(1);
 
         qrCodeQueueMapper.updateDataStatus(dataId, STATUS_PROCESSING);
@@ -216,6 +239,7 @@ public class QrCodeQueueManager {
         }
         consumerIdle = true;
         currentProcessingData = null;
+        currentDisplayStartMs = 0L;
         refreshCount.set(0);
         System.out.println("📭 队列一为空，无待处理数据");
         publishQrUpdate(null);
@@ -223,6 +247,7 @@ public class QrCodeQueueManager {
 
     private void clearCurrentState() {
         currentProcessingData = null;
+        currentDisplayStartMs = 0L;
         refreshCount.set(0);
     }
 
@@ -260,6 +285,10 @@ public class QrCodeQueueManager {
 
     @Transactional
     public boolean handleSuccessSignal(String dataId) {
+        if (TEST_MODE) {
+            System.out.println("⚠️ 【测试模式】忽略成功信号: " + dataId);
+            return false;
+        }
         synchronized (consumerLock) {
             if (currentProcessingData == null) {
                 System.out.println("⚠️ 当前没有正在处理的数据，忽略成功信号: " + dataId);
@@ -280,6 +309,10 @@ public class QrCodeQueueManager {
 
     @Transactional
     public boolean handleGeneralSuccessSignal() {
+        if (TEST_MODE) {
+            System.out.println("⚠️ 【测试模式】忽略通用成功信号");
+            return false;
+        }
         synchronized (consumerLock) {
             if (currentProcessingData == null) {
                 System.out.println("⚠️ 当前没有正在处理的数据，忽略通用成功信号");
@@ -450,7 +483,8 @@ public class QrCodeQueueManager {
 
     @PostConstruct
     public void init() {
-        System.out.println("🔧 QrCodeQueueManager 初始化...");
+        System.out.println("🔧 QrCodeQueueManager 初始化..."
+                + (TEST_MODE ? "（测试模式：每张二维码展示 " + DISPLAY_DURATION_SECONDS + " 秒后自动下一张）" : ""));
         startProcessing();
     }
 

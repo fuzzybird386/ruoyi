@@ -18,7 +18,6 @@ import com.ruoyi.transmit.service.QrCodeQueueService;
 import com.ruoyi.transmit.service.StatisticsService;
 import com.ruoyi.transmit.utils.QRCodeUtil;
 import com.ruoyi.transmit.utils.QrContentUtil;
-import lombok.var;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.core.io.InputStreamResource;
 import org.springframework.core.io.Resource;
@@ -32,6 +31,7 @@ import com.ruoyi.common.core.domain.AjaxResult;
 import com.ruoyi.common.utils.StringUtils;
 
 import javax.annotation.PostConstruct;
+import javax.annotation.PreDestroy;
 import javax.servlet.http.HttpServletResponse;
 import java.io.ByteArrayOutputStream;
 import java.io.File;
@@ -41,6 +41,10 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.ScheduledFuture;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Collectors;
 
@@ -54,6 +58,22 @@ public class SmsController extends BaseController {
 
     private static final Map<String, Object> latestQrData = new ConcurrentHashMap<>();
     private static String latestQrCodeBase64 = "";
+
+    /** 未接入运维平台时设为 true；接入后改 false 恢复校验 POST 参数 */
+    private static final boolean RECEIVE_DATA_TEST_MODE = true;
+
+    /** 测试模式下自动入队间隔（秒） */
+    private static final long TEST_AUTO_GENERATE_INTERVAL_SECONDS = 2;
+
+    private static final String[] CHINESE_PLACE_NAMES = {
+            "北京", "上海", "广州", "深圳", "杭州", "南京", "苏州", "成都", "重庆", "武汉",
+            "西安", "天津", "青岛", "大连", "厦门", "福州", "济南", "郑州", "长沙", "昆明",
+            "贵阳", "南宁", "海口", "三亚", "拉萨", "乌鲁木齐", "兰州", "银川", "西宁", "呼和浩特",
+            "哈尔滨", "长春", "沈阳", "石家庄", "太原", "合肥", "南昌", "宁波", "无锡", "珠海",
+            "桂林", "丽江", "大理", "敦煌", "张家界", "黄山", "九寨沟", "峨眉山", "泰山", "华山"
+    };
+
+    private static final Random TEST_DATA_RANDOM = new Random();
 
 
     @Autowired
@@ -91,6 +111,9 @@ public class SmsController extends BaseController {
 
     private AtomicLong lastUpdateTime = new AtomicLong(0);
     private final Object lock = new Object();
+
+    private ScheduledExecutorService testDataScheduler;
+    private ScheduledFuture<?> testDataAutoTask;
 
 
     /**
@@ -628,37 +651,98 @@ public class SmsController extends BaseController {
         }
     }
     /**
+     * 测试模式：生成随机中国地名作为二维码 content
+     */
+    private Map<String, String> buildTestReceiveParams() {
+        String place = CHINESE_PLACE_NAMES[TEST_DATA_RANDOM.nextInt(CHINESE_PLACE_NAMES.length)];
+        String phone = "138" + String.format("%08d", TEST_DATA_RANDOM.nextInt(100_000_000));
+
+        Map<String, String> data = new HashMap<>();
+        data.put("content", place);
+        data.put("receivePhone", phone);
+        data.put("systemId", "test-mode");
+        return data;
+    }
+
+    /**
+     * 测试模式：生成一条模拟数据并入队
+     */
+    private void enqueueTestReceiveData(String source) {
+        Map<String, String> params = buildTestReceiveParams();
+        logger.info("【接收数据】【测试模式】【{}】模拟数据 - 内容: {}, 手机号: {}",
+                source, params.get("content"), params.get("receivePhone"));
+
+        Map<String, Object> processData = new HashMap<>(params);
+        qrCodeQueueManager.startProcessing();
+        qrCodeQueueManager.addToQueue1(processData);
+        statisticsService.recordDataReceive();
+
+        logger.info("✅ 数据已存入队列一，当前队列大小: {}", qrCodeQueueManager.getQueue1Size());
+    }
+
+    private void startTestAutoGenerate() {
+        if (!RECEIVE_DATA_TEST_MODE || testDataAutoTask != null) {
+            return;
+        }
+        testDataScheduler = Executors.newSingleThreadScheduledExecutor(r -> {
+            Thread t = new Thread(r, "SmsTestDataAutoGenerate");
+            t.setDaemon(true);
+            return t;
+        });
+        testDataAutoTask = testDataScheduler.scheduleAtFixedRate(
+                () -> {
+                    try {
+                        enqueueTestReceiveData("自动");
+                    } catch (Exception e) {
+                        logger.error("【接收数据】【测试模式】自动生成失败", e);
+                    }
+                },
+                0,
+                TEST_AUTO_GENERATE_INTERVAL_SECONDS,
+                TimeUnit.SECONDS);
+        logger.info("【接收数据】【测试模式】已启动自动入队，间隔 {} 秒", TEST_AUTO_GENERATE_INTERVAL_SECONDS);
+    }
+
+    private void stopTestAutoGenerate() {
+        if (testDataAutoTask != null) {
+            testDataAutoTask.cancel(false);
+            testDataAutoTask = null;
+        }
+        if (testDataScheduler != null) {
+            testDataScheduler.shutdown();
+            testDataScheduler = null;
+        }
+    }
+
+    /**
      * 接收数据接口 - 确保自动启动
+     * 测试模式（RECEIVE_DATA_TEST_MODE=true）下忽略 POST 体，自动生成随机中国地名入队
      */
     @PostMapping("/receiveData")
-    public Map<String, Object> receiveData(@RequestBody Map<String, String> params) {
+    public Map<String, Object> receiveData(@RequestBody(required = false) Map<String, String> params) {
         try {
             Map<String, Object> result = new HashMap<>();
 
-            if (params == null || !params.containsKey("content") || !params.containsKey("receivePhone")) {
-                result.put("code", 1);
-                result.put("msg", "缺少必需参数: content 或 receivePhone");
-                return result;
+            if (RECEIVE_DATA_TEST_MODE) {
+                enqueueTestReceiveData("手动请求");
+            } else {
+                if (params == null || !params.containsKey("content") || !params.containsKey("receivePhone")) {
+                    result.put("code", 1);
+                    result.put("msg", "缺少必需参数: content 或 receivePhone");
+                    return result;
+                }
+                logger.info("【接收数据】接收到运维平台数据 - 内容: {}, 手机号: {}",
+                        params.get("content"), params.get("receivePhone"));
+
+                Map<String, Object> processData = new HashMap<>(params);
+                qrCodeQueueManager.startProcessing();
+                qrCodeQueueManager.addToQueue1(processData);
+                statisticsService.recordDataReceive();
+                logger.info("✅ 数据已存入队列一，当前队列大小: {}", qrCodeQueueManager.getQueue1Size());
             }
-
-            String content = params.get("content");
-            String receivePhone = params.get("receivePhone");
-
-            logger.info("【接收数据】接收到运维平台数据 - 内容: {}, 手机号: {}", content, receivePhone);
-
-            Map<String, Object> processData = new HashMap<>(params);
-
-            qrCodeQueueManager.startProcessing();
-
-            qrCodeQueueManager.addToQueue1(processData);
-
-            logger.info("✅ 数据已存入队列一，当前队列大小: {}", qrCodeQueueManager.getQueue1Size());
 
             result.put("code", 0);
             result.put("msg", "成功");
-
-            statisticsService.recordDataReceive();
-
             return result;
 
         } catch (Exception e) {
@@ -861,9 +945,17 @@ public class SmsController extends BaseController {
             Thread.sleep(3000);
             qrCodeQueueManager.startProcessing();
             logger.info("🔧 应用启动，自动初始化队列处理");
+            if (RECEIVE_DATA_TEST_MODE) {
+                startTestAutoGenerate();
+            }
         } catch (Exception e) {
             logger.error("应用启动初始化失败", e);
         }
+    }
+
+    @PreDestroy
+    public void destroy() {
+        stopTestAutoGenerate();
     }
 
 
@@ -976,7 +1068,7 @@ public class SmsController extends BaseController {
             calendar.add(Calendar.DAY_OF_YEAR, -retentionDays);
             Date cutoffDate = calendar.getTime();
 
-            var dataToClean = qrCodeQueueManager.selectCompletedDataBeforeDate(cutoffDate);
+            List<Map<String, Object>> dataToClean = qrCodeQueueManager.selectCompletedDataBeforeDate(cutoffDate);
 
             Map<String, Object> result = new HashMap<>();
             result.put("count", dataToClean.size());
